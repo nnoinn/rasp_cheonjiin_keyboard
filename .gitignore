@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.bak
+.claude/
+g1/
+.lgd-nfy0
