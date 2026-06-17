@@ -467,6 +467,39 @@ input[type=text]::placeholder {{ color: #c7c7cc; font-weight: 400; }}
   padding: 0; transition: background 0.15s ease, color 0.15s ease;
 }}
 .btn-x:hover {{ background: #1d1d1f; color: #fff; }}
+/* ── 클릭 선택 모드 ─────────────────────────── */
+.card.card-selected {{
+  box-shadow:
+    0 0 0 2.5px #1d1d1f,
+    0 4px 20px rgba(0,0,0,0.18);
+  transform: translateY(-3px) scale(1.06);
+  cursor: pointer;
+}}
+.cell.pick-target:not(.fixed) {{
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1.5px rgba(29,29,31,0.20),
+    0 2px 6px rgba(0,0,0,0.06),
+    0 10px 28px rgba(0,0,0,0.11),
+    0 24px 48px rgba(0,0,0,0.05);
+}}
+.cell.pick-target:not(.fixed):hover {{
+  box-shadow:
+    0 0 0 2px #1d1d1f,
+    0 4px 12px rgba(0,0,0,0.10),
+    0 20px 48px rgba(0,0,0,0.17);
+  transform: translateY(-2px);
+}}
+#card-ghost {{
+  position: fixed;
+  pointer-events: none;
+  z-index: 300;
+  opacity: 0.78;
+  transform: translate(-50%, -50%) rotate(-4deg) scale(1.10);
+  box-shadow:
+    0 8px 28px rgba(0,0,0,0.22),
+    0 20px 48px rgba(0,0,0,0.14);
+}}
 .layout {{
   display: flex; gap: 24px; max-width: 1000px; margin: 0 auto; align-items: flex-start;
 }}
@@ -610,7 +643,7 @@ input[type=range]::-moz-range-thumb {{
 </head>
 <body>
   <h1>천지인 키보드 설정</h1>
-  <p class="sub">직접 입력하거나 아래 카드를 드래그해서 놓으세요</p>
+  <p class="sub">직접 입력하거나 아래 카드를 드래그 또는 클릭해서 적용하세요</p>
   {banner}
   <div class="layout">
     <div class="left-col-wrap">
@@ -685,15 +718,27 @@ input[type=range]::-moz-range-thumb {{
       }}
     }});
 
-    // ── 드래그 상태 ─────────────────────────────
+    // ── 드래그 / 클릭 선택 상태 ─────────────────
     var _dv = "", _dl = "";
+    var _sel = null; // {{ value, label, el }} or null
 
     document.querySelectorAll(".card").forEach(function(c) {{
       c.setAttribute("draggable", "true");
       c.addEventListener("dragstart", function(e) {{
+        clearSel();
         _dv = c.dataset.value;
         _dl = c.querySelector(".card-lbl").textContent;
         e.dataTransfer.effectAllowed = "copy";
+      }});
+      c.addEventListener("click", function(e) {{
+        if (_sel && _sel.el === c) {{ clearSel(); return; }}
+        if (_sel) _sel.el.classList.remove("card-selected");
+        _sel = {{ value: c.dataset.value, label: c.querySelector(".card-lbl").textContent, el: c }};
+        c.classList.add("card-selected");
+        createGhost(c, e.clientX, e.clientY);
+        document.querySelectorAll(".cell:not(.fixed)").forEach(function(cell) {{
+          cell.classList.add("pick-target");
+        }});
       }});
     }});
 
@@ -709,6 +754,16 @@ input[type=range]::-moz-range-thumb {{
         e.preventDefault();
         cell.classList.remove("drop-over");
         lockCell(cell, _dv, _dl);
+      }});
+    }});
+
+    // ── 클릭 선택 → 셀 적용 ──────────────────────
+    document.querySelectorAll(".cell:not(.fixed)").forEach(function(cell) {{
+      cell.addEventListener("click", function(e) {{
+        if (!_sel) return;
+        if (e.target.closest(".btn-x")) return;
+        lockCell(cell, _sel.value, _sel.label);
+        clearSel();
       }});
     }});
 
@@ -747,6 +802,43 @@ input[type=range]::-moz-range-thumb {{
       return btn;
     }}
 
+    var _ghost = null;
+    function createGhost(cardEl, x, y) {{
+      removeGhost();
+      var g = cardEl.cloneNode(true);
+      g.id = "card-ghost";
+      g.removeAttribute("draggable");
+      g.style.left = x + "px";
+      g.style.top = y + "px";
+      document.body.appendChild(g);
+      _ghost = g;
+    }}
+    function removeGhost() {{
+      if (_ghost) {{ _ghost.remove(); _ghost = null; }}
+    }}
+    document.addEventListener("mousemove", function(e) {{
+      if (_ghost) {{
+        _ghost.style.left = e.clientX + "px";
+        _ghost.style.top = e.clientY + "px";
+      }}
+    }});
+
+    function clearSel() {{
+      if (_sel) {{ _sel.el.classList.remove("card-selected"); _sel = null; }}
+      document.querySelectorAll(".pick-target").forEach(function(c) {{ c.classList.remove("pick-target"); }});
+      removeGhost();
+    }}
+
+    document.addEventListener("click", function(e) {{
+      if (!_sel) return;
+      if (e.target.closest(".card") || e.target.closest(".cell") || e.target.closest("#sel-bar")) return;
+      clearSel();
+    }});
+
+    document.addEventListener("keydown", function(e) {{
+      if (e.key === "Escape" && _sel) clearSel();
+    }});
+
     // ── 조이스틱 패널 높이 동기화 ──────────────────
     function alignJoyPanel() {{
       var cells = Array.from(document.querySelectorAll(".cell"));
@@ -769,6 +861,7 @@ input[type=range]::-moz-range-thumb {{
       }}, 8000);
     }}
   </script>
+
 </body>
 </html>"""
 
